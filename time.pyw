@@ -28,12 +28,16 @@ if sys.platform == 'win32':
     ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
 # 程式資訊
-VERSION = "1.5.7"
+VERSION = "1.5.8"
 AUTHOR = "GFK"
 CONTACT_EMAIL = "gfkwork928@gmail.com"
 
 # 版本更新紀錄
 VERSION_HISTORY = {
+    "1.5.8": [
+        "修復程式更新後無法運行的問題",
+        "優化程式打包配置"
+    ],
     "1.5.7": [
         "添加退出程式按鈕",
         "優化界面佈局"
