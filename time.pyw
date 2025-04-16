@@ -28,12 +28,21 @@ if sys.platform == 'win32':
     ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
 # 程式資訊
-VERSION = "1.5.5"
+VERSION = "1.5.7"
 AUTHOR = "GFK"
 CONTACT_EMAIL = "gfkwork928@gmail.com"
 
 # 版本更新紀錄
 VERSION_HISTORY = {
+    "1.5.7": [
+        "添加退出程式按鈕",
+        "優化界面佈局"
+    ],
+    "1.5.6": [
+        "改進更新功能顯示",
+        "添加版本號檢查提示",
+        "優化更新進度顯示"
+    ],
     "1.5.5": [
         "新增多個 NTP 伺服器選項",
         "添加自動安裝必要套件功能",
@@ -278,40 +287,155 @@ def check_for_updates():
         if response.status_code == 200:
             latest_release = response.json()
             latest_version = latest_release['tag_name'].lstrip('v')
+            
+            # 比較版本號
             if latest_version > VERSION:
-                if messagebox.askyesno("更新可用", 
-                    f"發現新版本 {latest_version}\n是否要更新？\n\n更新說明：\n{latest_release['body']}"):
-                    download_update(latest_release['assets'][0]['browser_download_url'])
+                assets = latest_release.get('assets', [])
+                if not assets:
+                    raise Exception("找不到更新檔案")
+                    
+                download_url = assets[0]['browser_download_url']
+                update_info = latest_release.get('body', '無更新說明')
+                
+                if messagebox.askyesno(
+                    "更新可用",
+                    f"目前版本：v{VERSION}\n"
+                    f"最新版本：v{latest_version}\n\n"
+                    f"更新說明：\n{update_info}\n\n"
+                    "是否要更新？"
+                ):
+                    download_update(download_url, latest_version)
                     return True
+            else:
+                messagebox.showinfo(
+                    "檢查更新",
+                    f"目前版本：v{VERSION}\n"
+                    "您使用的已經是最新版本！"
+                )
         return False
     except Exception as e:
-        messagebox.showerror("更新檢查失敗", f"檢查更新時發生錯誤：{str(e)}")
+        messagebox.showerror(
+            "更新檢查失敗",
+            f"檢查更新時發生錯誤：\n{str(e)}\n\n請確保網路連接正常後再試。"
+        )
         return False
 
-def download_update(download_url):
+def download_update(download_url, latest_version):
     """下載更新檔案"""
     try:
+        # 顯示下載進度視窗
+        progress_window = tk.Toplevel()
+        progress_window.title(f"下載更新 v{latest_version}")
+        progress_window.geometry("300x150")
+        progress_window.resizable(False, False)
+        progress_window.transient()  # 設置為置頂視窗
+        progress_window.grab_set()   # 鎖定其他視窗操作
+        
+        # 設置視窗置中
+        window_width = 300
+        window_height = 150
+        screen_width = progress_window.winfo_screenwidth()
+        screen_height = progress_window.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        progress_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # 進度標籤
+        progress_label = ttk.Label(
+            progress_window,
+            text=f"正在下載 v{latest_version} 版本更新...",
+            font=("微軟正黑體", 10)
+        )
+        progress_label.pack(pady=20)
+        
+        # 進度條
+        progress_bar = ttk.Progressbar(
+            progress_window,
+            length=200,
+            mode='determinate'
+        )
+        progress_bar.pack(pady=10)
+        
+        # 更新進度視窗
+        progress_window.update()
+        
+        # 下載文件
         response = requests.get(download_url, stream=True)
         if response.status_code == 200:
+            # 獲取文件大小
+            total_size = int(response.headers.get('content-length', 0))
+            block_size = 1024  # 1 KB
+            downloaded = 0
+            
+            # 創建臨時文件
             with tempfile.NamedTemporaryFile(delete=False, suffix='.exe') as tmp_file:
-                shutil.copyfileobj(response.raw, tmp_file)
+                for data in response.iter_content(block_size):
+                    tmp_file.write(data)
+                    downloaded += len(data)
+                    # 更新進度條
+                    if total_size:
+                        progress = (downloaded / total_size) * 100
+                        progress_bar['value'] = progress
+                        progress_window.update()
                 tmp_path = tmp_file.name
+            
+            progress_label.config(text=f"正在準備安裝 v{latest_version}...")
+            progress_window.update()
             
             # 建立更新批次檔
             batch_path = os.path.join(tempfile.gettempdir(), 'update.bat')
-            with open(batch_path, 'w') as f:
+            with open(batch_path, 'w', encoding='utf-8') as f:
                 f.write('@echo off\n')
-                f.write('ping 127.0.0.1 -n 2 > nul\n')  # 等待原程式結束
+                f.write('title 正在更新系統時間設定工具\n')
+                f.write(f'echo 正在更新至 v{latest_version}，請稍候...\n')
+                f.write('ping 127.0.0.1 -n 3 > nul\n')  # 等待原程式結束
                 f.write(f'move /y "{tmp_path}" "{sys.executable}"\n')
+                f.write('if errorlevel 1 (\n')
+                f.write('    echo 更新失敗！請確保程式已完全關閉後重試。\n')
+                f.write('    pause\n')
+                f.write('    exit /b 1\n')
+                f.write(')\n')
+                f.write('echo 更新完成！正在啟動新版本...\n')
                 f.write(f'start "" "{sys.executable}"\n')
+                f.write('ping 127.0.0.1 -n 2 > nul\n')
                 f.write('del "%~f0"\n')  # 自刪除批次檔
             
+            # 關閉進度視窗
+            progress_window.destroy()
+            
+            # 顯示更新提示
+            messagebox.showinfo(
+                "更新準備就緒", 
+                f"v{latest_version} 版本更新檔案已下載完成，\n"
+                "程式將重新啟動以完成更新。\n\n"
+                "注意：如果更新失敗，請確保：\n"
+                "1. 程式完全關閉\n"
+                "2. 以系統管理員身份運行"
+            )
+            
             # 執行更新批次檔
-            subprocess.Popen(['cmd.exe', '/c', batch_path], 
-                           creationflags=subprocess.CREATE_NO_WINDOW)
+            subprocess.Popen(
+                ['cmd.exe', '/c', batch_path],
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
             sys.exit(0)
+        else:
+            progress_window.destroy()
+            raise Exception(f"下載失敗：伺服器回應代碼 {response.status_code}")
+            
     except Exception as e:
-        messagebox.showerror("更新下載失敗", f"下載更新時發生錯誤：{str(e)}")
+        try:
+            progress_window.destroy()
+        except:
+            pass
+        messagebox.showerror(
+            "更新下載失敗",
+            f"下載更新時發生錯誤：\n{str(e)}\n\n"
+            "請確保：\n"
+            "1. 網路連接正常\n"
+            "2. 程式以系統管理員身份運行\n"
+            "3. 防毒軟體未阻止下載"
+        )
 
 class TimeChangerApp:
     def __init__(self, root):
@@ -611,6 +735,15 @@ class TimeChangerApp:
         # 右側按鈕
         button_frame = ttk.Frame(version_frame)
         button_frame.pack(side="right")
+        
+        # 退出按鈕
+        exit_button = ttk.Button(
+            button_frame,
+            text="退出程式",
+            command=self.root.quit,
+            width=10
+        )
+        exit_button.pack(side="right", padx=(5, 0))
         
         # 檢查更新按鈕
         update_button = ttk.Button(
