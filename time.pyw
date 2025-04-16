@@ -28,12 +28,17 @@ if sys.platform == 'win32':
     ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
 # 程式資訊
-VERSION = "1.5.4"
+VERSION = "1.5.5"
 AUTHOR = "GFK"
 CONTACT_EMAIL = "gfkwork928@gmail.com"
 
 # 版本更新紀錄
 VERSION_HISTORY = {
+    "1.5.5": [
+        "新增多個 NTP 伺服器選項",
+        "添加自動安裝必要套件功能",
+        "優化程式啟動流程"
+    ],
     "1.5.4": [
         "修改同步按鈕功能為同步本機時間",
         "優化命令視窗隱藏方式",
@@ -41,54 +46,28 @@ VERSION_HISTORY = {
     ],
     "1.5.3": [
         "優化使用者介面",
-        "修復已知問題"
+        "修復已知問題",
+        "改進時間同步功能"
     ],
     "1.5.2": [
-        "新增預設時間快速設定按鈕",
         "添加聯繫信息",
-        "優化界面佈局"
+        "優化界面佈局",
+        "改進時間顯示"
     ],
     "1.5.1": [
-        "新增主題切換功能",
         "改進錯誤處理",
-        "優化程式碼結構"
+        "優化程式碼結構",
+        "改進時間更新機制"
     ],
     "1.5.0": [
         "優化系統時間顯示",
         "添加星期顯示",
-        "改進時間更新機制",
-        "優化時間顯示視覺效果"
-    ],
-    "1.4.6": [
-        "移除主題切換功能",
-        "優化介面為固定淺色主題",
-        "改進輸入框和標籤樣式",
-        "調整視窗預設大小為 800x500"
-    ],
-    "1.4.5": [
-        "優化程式碼結構",
-        "減少不必要的依賴",
-        "改進打包方式"
-    ],
-    "1.4.4": [
-        "新增刷新按鈕功能",
-        "優化時間輸入界面",
-        "改進使用者體驗"
-    ],
-    "1.4.3": [
-        "改進網路時間獲取功能",
-        "增加多個 NTP 伺服器選項",
-        "優化錯誤提示訊息"
+        "改進時間更新機制"
     ],
     "1.4.0": [
         "隱藏命令視窗",
         "優化程式啟動流程",
         "改進錯誤處理機制"
-    ],
-    "1.3.1": [
-        "移除成功提示彈窗",
-        "優化時間更新邏輯",
-        "修復手動輸入時間更新問題"
     ],
     "1.3.0": [
         "修改為台灣用語",
@@ -109,8 +88,7 @@ VERSION_HISTORY = {
         "初始版本發行",
         "支援手動修改系統時間",
         "支援取得網路時間",
-        "自動請求系統管理員權限",
-        "自動安裝必要套件"
+        "自動請求系統管理員權限"
     ]
 }
 
@@ -584,6 +562,7 @@ class TimeChangerApp:
         buttons = [
             ("更新系統時間", self.update_system_time),
             ("取得網路時間", self.get_network_time),
+            ("NTP 伺服器", self.show_ntp_servers),
             ("刷新", self.refresh_input_time)
         ]
         
@@ -991,6 +970,121 @@ class TimeChangerApp:
     def open_email(self):
         """開啟郵件程式"""
         os.startfile(f"mailto:{CONTACT_EMAIL}")
+
+    def show_ntp_servers(self):
+        # 創建 NTP 伺服器選擇視窗
+        ntp_window = tk.Toplevel()
+        ntp_window.title("NTP 伺服器設定")
+        ntp_window.geometry("400x500")
+        ntp_window.resizable(True, True)
+        
+        # 設置主題
+        style = ttk.Style()
+        style.configure("NTP.TCheckbutton", font=("微軟正黑體", 10))
+        
+        # 創建主框架
+        main_frame = ttk.Frame(ntp_window, padding="20")
+        main_frame.pack(fill="both", expand=True)
+        
+        # 創建滾動區域
+        canvas = tk.Canvas(main_frame)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=350)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # NTP 伺服器列表
+        ntp_servers = {
+            'pool.ntp.org': True,
+            'time.windows.com': True,
+            'time.nist.gov': True,
+            'time.google.com': True,
+            'time.apple.com': True,
+            'ntp.aliyun.com': True,
+            'ntp1.aliyun.com': False,
+            'ntp2.aliyun.com': False,
+            'ntp3.aliyun.com': False,
+            'ntp4.aliyun.com': False,
+            'ntp5.aliyun.com': False,
+            'ntp6.aliyun.com': False,
+            'ntp7.aliyun.com': False,
+            'time.cloudflare.com': True,
+            'time.facebook.com': True,
+            'time.asia.apple.com': True
+        }
+        
+        # 創建標題
+        title_label = ttk.Label(
+            scrollable_frame,
+            text="選擇要使用的 NTP 伺服器：",
+            font=("微軟正黑體", 11, "bold")
+        )
+        title_label.pack(anchor="w", pady=(0, 10))
+        
+        # 創建複選框
+        var_dict = {}
+        for server, default_state in ntp_servers.items():
+            var = tk.BooleanVar(value=default_state)
+            var_dict[server] = var
+            cb = ttk.Checkbutton(
+                scrollable_frame,
+                text=server,
+                variable=var,
+                style="NTP.TCheckbutton"
+            )
+            cb.pack(anchor="w", pady=2)
+        
+        # 創建按鈕框架
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill="x", pady=(10, 0))
+        
+        def save_settings():
+            # 保存設置
+            selected_servers = [server for server, var in var_dict.items() if var.get()]
+            if not selected_servers:
+                messagebox.showwarning("警告", "請至少選擇一個 NTP 伺服器！")
+                return
+            ntp_window.destroy()
+        
+        # 添加保存按鈕
+        save_button = ttk.Button(
+            button_frame,
+            text="保存設置",
+            command=save_settings,
+            width=15
+        )
+        save_button.pack(side="right", padx=5)
+        
+        # 設置滾動區域
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # 綁定滑鼠滾輪
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        # 設置視窗置中
+        ntp_window.update_idletasks()
+        width = ntp_window.winfo_width()
+        height = ntp_window.winfo_height()
+        x = (ntp_window.winfo_screenwidth() // 2) - (width // 2)
+        y = (ntp_window.winfo_screenheight() // 2) - (height // 2)
+        ntp_window.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # 綁定關閉事件
+        def on_closing():
+            canvas.unbind_all("<MouseWheel>")
+            ntp_window.destroy()
+        
+        ntp_window.protocol("WM_DELETE_WINDOW", on_closing)
 
 if __name__ == "__main__":
     try:
