@@ -27,12 +27,17 @@ if sys.platform == 'win32':
     ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
 # 程式資訊
-VERSION = "1.5.9"
+VERSION = "1.6.0"
 AUTHOR = "GFK"
 CONTACT_EMAIL = "gfkwork928@gmail.com"
 
 # 版本更新紀錄
 VERSION_HISTORY = {
+    "1.6.0": [
+        "新增自定義快速設定時間功能",
+        "支援保存自定義時間設定",
+        "優化快速設定介面"
+    ],
     "1.5.9": [
         "移除時間模板功能",
         "添加功能介紹按鈕",
@@ -108,6 +113,39 @@ VERSION_HISTORY = {
         "自動請求系統管理員權限"
     ]
 }
+
+# 設定檔路徑
+CONFIG_DIR = os.path.join(os.path.expanduser("~"), "AppData", "Local", "TimeSetter")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.json")
+
+# 確保設定目錄存在
+os.makedirs(CONFIG_DIR, exist_ok=True)
+
+# 預設設定
+DEFAULT_SETTINGS = {
+    "preset_times": [
+        {"name": "07:59:20", "time": "07:59:20"},
+        {"name": "08:00:06", "time": "08:00:06"}
+    ]
+}
+
+def load_settings():
+    """載入設定"""
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"載入設定失敗：{str(e)}")
+    return DEFAULT_SETTINGS.copy()
+
+def save_settings(settings):
+    """儲存設定"""
+    try:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(settings, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"儲存設定失敗：{str(e)}")
 
 def show_version_history():
     # 創建版本歷史視窗
@@ -396,8 +434,8 @@ def download_update(download_url, latest_version):
                 f.write('@echo off\n')
                 f.write('title 正在更新系統時間設定工具\n')
                 f.write(f'echo 正在更新至 v{latest_version}，請稍候...\n')
-                f.write('ping 127.0.0.1 -n 3 > nul\n')  # 等待原程式結束
-                f.write(f'move /y "{tmp_path}" "{sys.executable}"\n')
+                f.write('timeout /t 2 /nobreak > nul\n')  # 等待原程式結束
+                f.write(f'copy /y "{tmp_path}" "{sys.executable}"\n')
                 f.write('if errorlevel 1 (\n')
                 f.write('    echo 更新失敗！請確保程式已完全關閉後重試。\n')
                 f.write('    pause\n')
@@ -405,7 +443,7 @@ def download_update(download_url, latest_version):
                 f.write(')\n')
                 f.write('echo 更新完成！正在啟動新版本...\n')
                 f.write(f'start "" "{sys.executable}"\n')
-                f.write('ping 127.0.0.1 -n 2 > nul\n')
+                f.write('timeout /t 2 /nobreak > nul\n')
                 f.write('del "%~f0"\n')  # 自刪除批次檔
             
             # 關閉進度視窗
@@ -669,19 +707,162 @@ class TimeChangerApp:
         inner_frame.pack(expand=True)
         
         # 預設時間按鈕
-        preset_buttons = [
-            ("07:59:20", "07:59:20"),
-            ("08:00:06", "08:00:06")
-        ]
-        
-        for text, time_str in preset_buttons:
+        for preset in self.settings["preset_times"]:
             btn = ttk.Button(
                 inner_frame,
-                text=text,
-                command=lambda t=time_str: self.set_preset_time(t),
+                text=preset["name"],
+                command=lambda t=preset["time"]: self.set_preset_time(t),
                 width=10
             )
             btn.pack(side="left", padx=10)
+        
+        # 添加管理按鈕
+        manage_btn = ttk.Button(
+            inner_frame,
+            text="管理",
+            command=self.manage_preset_times,
+            width=8
+        )
+        manage_btn.pack(side="left", padx=10)
+
+    def manage_preset_times(self):
+        """管理自定義時間設定"""
+        # 創建管理視窗
+        manage_window = tk.Toplevel()
+        manage_window.title("管理快速設定時間")
+        manage_window.geometry("400x500")
+        manage_window.resizable(False, False)
+        manage_window.transient(self.root)
+        manage_window.grab_set()
+        
+        # 設置視窗置中
+        window_width = 400
+        window_height = 500
+        screen_width = manage_window.winfo_screenwidth()
+        screen_height = manage_window.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        manage_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # 創建主框架
+        main_frame = ttk.Frame(manage_window, padding="20")
+        main_frame.pack(fill="both", expand=True)
+        
+        # 創建滾動區域
+        canvas = tk.Canvas(main_frame)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=350)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # 添加新時間框架
+        add_frame = ttk.LabelFrame(scrollable_frame, text="新增快速設定", padding="10")
+        add_frame.pack(fill="x", pady=(0, 10))
+        
+        # 名稱輸入
+        name_frame = ttk.Frame(add_frame)
+        name_frame.pack(fill="x", pady=(0, 5))
+        ttk.Label(name_frame, text="名稱：").pack(side="left")
+        name_entry = ttk.Entry(name_frame)
+        name_entry.pack(side="left", fill="x", expand=True, padx=(5, 0))
+        
+        # 時間輸入
+        time_frame = ttk.Frame(add_frame)
+        time_frame.pack(fill="x", pady=(0, 5))
+        ttk.Label(time_frame, text="時間：").pack(side="left")
+        time_entry = ttk.Entry(time_frame)
+        time_entry.pack(side="left", fill="x", expand=True, padx=(5, 0))
+        
+        # 添加按鈕
+        def add_preset():
+            name = name_entry.get().strip()
+            time = time_entry.get().strip()
+            
+            if not name or not time:
+                messagebox.showerror("錯誤", "請填寫名稱和時間！")
+                return
+                
+            try:
+                # 驗證時間格式
+                datetime.strptime(time, "%H:%M:%S")
+            except ValueError:
+                messagebox.showerror("錯誤", "時間格式不正確！請使用 HH:MM:SS 格式")
+                return
+                
+            # 添加到設定
+            self.settings["preset_times"].append({
+                "name": name,
+                "time": time
+            })
+            save_settings(self.settings)
+            
+            # 清空輸入框
+            name_entry.delete(0, tk.END)
+            time_entry.delete(0, tk.END)
+            
+            # 重新整理列表
+            refresh_list()
+            
+        add_btn = ttk.Button(add_frame, text="添加", command=add_preset)
+        add_btn.pack(pady=5)
+        
+        # 現有設定列表
+        list_frame = ttk.LabelFrame(scrollable_frame, text="現有設定", padding="10")
+        list_frame.pack(fill="x", pady=(10, 0))
+        
+        def refresh_list():
+            # 清除現有項目
+            for widget in list_frame.winfo_children():
+                widget.destroy()
+            
+            # 添加新項目
+            for i, preset in enumerate(self.settings["preset_times"]):
+                item_frame = ttk.Frame(list_frame)
+                item_frame.pack(fill="x", pady=2)
+                
+                ttk.Label(item_frame, text=f"{preset['name']} ({preset['time']})").pack(side="left")
+                
+                def delete_preset(index):
+                    if messagebox.askyesno("確認", "確定要刪除這個設定嗎？"):
+                        self.settings["preset_times"].pop(index)
+                        save_settings(self.settings)
+                        refresh_list()
+                
+                delete_btn = ttk.Button(
+                    item_frame,
+                    text="刪除",
+                    command=lambda idx=i: delete_preset(idx),
+                    width=6
+                )
+                delete_btn.pack(side="right")
+        
+        # 初始整理列表
+        refresh_list()
+        
+        # 設置滾動區域
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # 綁定滑鼠滾輪
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        # 綁定關閉事件
+        def on_closing():
+            canvas.unbind_all("<MouseWheel>")
+            manage_window.destroy()
+            # 重新整理主視窗的快速設定按鈕
+            self.create_preset_time_frame()
+        
+        manage_window.protocol("WM_DELETE_WINDOW", on_closing)
 
     def create_button_frame(self):
         button_frame = ttk.Frame(self.main_container)
