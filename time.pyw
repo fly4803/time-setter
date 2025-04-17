@@ -15,7 +15,6 @@ import winsound
 import requests
 import json
 import tempfile
-import shutil
 from pathlib import Path
 
 # 檢查是否已經有實例在運行
@@ -28,12 +27,17 @@ if sys.platform == 'win32':
     ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
 # 程式資訊
-VERSION = "1.5.8"
+VERSION = "1.5.9"
 AUTHOR = "GFK"
 CONTACT_EMAIL = "gfkwork928@gmail.com"
 
 # 版本更新紀錄
 VERSION_HISTORY = {
+    "1.5.9": [
+        "移除時間模板功能",
+        "添加功能介紹按鈕",
+        "優化界面佈局"
+    ],
     "1.5.8": [
         "修復程式更新後無法運行的問題",
         "優化程式打包配置"
@@ -456,7 +460,7 @@ class TimeChangerApp:
             
         self.root = root
         self.root.title(f"系統時間設定工具 v{VERSION} - {AUTHOR}")
-        self.root.geometry("650x580")  # 調整視窗大小
+        self.root.geometry("650x500")  # 調整視窗大小
         self.root.resizable(True, True)
         
         # 設置主題
@@ -767,6 +771,15 @@ class TimeChangerApp:
         )
         history_button.pack(side="right", padx=(5, 0))
 
+        # 功能介紹按鈕
+        help_button = ttk.Button(
+            button_frame,
+            text="功能介紹",
+            command=self.show_features_info,
+            width=10
+        )
+        help_button.pack(side="right", padx=(5, 0))
+
     def center_window(self):
         self.root.update_idletasks()
         width = self.root.winfo_width()
@@ -1002,7 +1015,7 @@ class TimeChangerApp:
         features_info = [
             {
                 "title": "系統時間顯示",
-                "description": "顯示當前系統時間，包含日期、星期和時間。時間會自動更新，確保顯示準確。"
+                "description": "即時顯示當前系統時間，包含日期、星期和時間。時間會自動更新，確保顯示準確。"
             },
             {
                 "title": "同步按鈕",
@@ -1018,11 +1031,15 @@ class TimeChangerApp:
             },
             {
                 "title": "取得網路時間",
-                "description": "從多個NTP伺服器獲取網路時間並同步。\n注意：需要網路連接才能使用此功能。"
+                "description": "從多個NTP伺服器獲取網路時間並同步。支援多個備用伺服器，確保高可用性。\n注意：需要網路連接才能使用此功能。"
             },
             {
-                "title": "刷新按鈕",
-                "description": "將所有輸入框更新為當前系統時間，方便進行小幅度的時間調整。"
+                "title": "NTP伺服器設定",
+                "description": "可以選擇和管理要使用的NTP伺服器，支援多個伺服器以提高可靠性。"
+            },
+            {
+                "title": "自動更新",
+                "description": "定期檢查新版本，發現更新時會提示用戶，確保使用最新版本。"
             }
         ]
         
