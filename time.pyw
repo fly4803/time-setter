@@ -27,12 +27,17 @@ if sys.platform == 'win32':
     ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
 # 程式資訊
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 AUTHOR = "GFK"
 CONTACT_EMAIL = "gfkwork928@gmail.com"
 
 # 版本更新紀錄
 VERSION_HISTORY = {
+    "1.6.1": [
+        "修復 NTP 伺服器設定無法保存的問題",
+        "改進設定檔案的保存機制",
+        "添加設定保存驗證"
+    ],
     "1.6.0": [
         "新增自定義快速設定時間功能",
         "支援保存自定義時間設定",
@@ -126,7 +131,25 @@ DEFAULT_SETTINGS = {
     "preset_times": [
         {"name": "07:59:20", "time": "07:59:20"},
         {"name": "08:00:06", "time": "08:00:06"}
-    ]
+    ],
+    "ntp_servers": {
+        'pool.ntp.org': True,
+        'time.windows.com': True,
+        'time.nist.gov': True,
+        'time.google.com': True,
+        'time.apple.com': True,
+        'ntp.aliyun.com': True,
+        'ntp1.aliyun.com': False,
+        'ntp2.aliyun.com': False,
+        'ntp3.aliyun.com': False,
+        'ntp4.aliyun.com': False,
+        'ntp5.aliyun.com': False,
+        'ntp6.aliyun.com': False,
+        'ntp7.aliyun.com': False,
+        'time.cloudflare.com': True,
+        'time.facebook.com': True,
+        'time.asia.apple.com': True
+    }
 }
 
 def load_settings():
@@ -134,7 +157,13 @@ def load_settings():
     try:
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                settings = json.load(f)
+                # 確保所有必要的設定都存在
+                if "preset_times" not in settings:
+                    settings["preset_times"] = DEFAULT_SETTINGS["preset_times"]
+                if "ntp_servers" not in settings:
+                    settings["ntp_servers"] = DEFAULT_SETTINGS["ntp_servers"]
+                return settings
     except Exception as e:
         print(f"載入設定失敗：{str(e)}")
     return DEFAULT_SETTINGS.copy()
@@ -142,10 +171,38 @@ def load_settings():
 def save_settings(settings):
     """儲存設定"""
     try:
+        # 確保目錄存在
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        
+        # 寫入前先檢查設定內容
+        if not isinstance(settings, dict):
+            raise ValueError("設定必須是字典格式")
+            
+        # 檢查必要的設定項
+        if "preset_times" not in settings:
+            settings["preset_times"] = DEFAULT_SETTINGS["preset_times"]
+        if "ntp_servers" not in settings:
+            settings["ntp_servers"] = DEFAULT_SETTINGS["ntp_servers"]
+            
+        # 寫入設定檔
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(settings, f, ensure_ascii=False, indent=4)
+            f.flush()  # 確保立即寫入磁碟
+            os.fsync(f.fileno())  # 強制同步到磁碟
+            
+        # 驗證設定是否正確保存
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                saved_settings = json.load(f)
+                if saved_settings != settings:
+                    raise ValueError("設定驗證失敗")
+                    
     except Exception as e:
-        print(f"儲存設定失敗：{str(e)}")
+        error_msg = f"儲存設定失敗：{str(e)}"
+        print(error_msg)  # 輸出到控制台
+        messagebox.showerror("錯誤", error_msg)
+        return False
+    return True
 
 def show_version_history():
     # 創建版本歷史視窗
@@ -498,22 +555,27 @@ class TimeChangerApp:
             
         self.root = root
         self.root.title(f"系統時間設定工具 v{VERSION} - {AUTHOR}")
-        self.root.geometry("650x500")  # 調整視窗大小
-        self.root.resizable(True, True)
+        self.root.geometry("800x600")  # 增加視窗寬度
+        self.root.resizable(False, False)  # 禁止調整視窗大小
+        self.root.minsize(800, 600)  # 設置最小視窗大小
+        self.root.maxsize(800, 600)  # 設置最大視窗大小
+        
+        # 載入設定
+        self.settings = load_settings()
         
         # 設置主題
         self.style = ttk.Style()
         
         # 建立主容器
-        self.main_container = ttk.Frame(self.root, padding="15")
+        self.main_container = ttk.Frame(self.root, padding="20")
         self.main_container.pack(fill="both", expand=True)
         
-        # 建立所有組件
+        # 建立所有組件（調整順序）
         self.create_title_frame()
         self.create_time_display_frame()
         self.create_input_frame()
-        self.create_button_frame()
         self.create_preset_time_frame()
+        self.create_button_frame()
         self.create_version_frame()
         
         # 設置淺色主題
@@ -627,6 +689,7 @@ class TimeChangerApp:
     def create_input_frame(self):
         input_frame = ttk.Frame(self.main_container)
         input_frame.pack(fill="x", pady=(0, 15))
+        self.input_frame = input_frame  # 保存框架引用
         
         # 日期輸入框架
         date_frame = ttk.LabelFrame(input_frame, text="日期", padding="10")
@@ -699,8 +762,13 @@ class TimeChangerApp:
         self.second_entry.insert(0, datetime.now().strftime("%S"))
 
     def create_preset_time_frame(self):
+        # 如果已經存在快速設定框架，先清除它
+        if hasattr(self, 'preset_frame'):
+            self.preset_frame.destroy()
+            
         preset_frame = ttk.LabelFrame(self.main_container, text="快速設定", padding="10")
-        preset_frame.pack(fill="x", pady=(0, 15))
+        preset_frame.pack(fill="x", pady=(0, 15), after=self.input_frame)  # 固定在輸入框之後
+        self.preset_frame = preset_frame  # 保存框架引用
         
         # 創建內部框架以確保按鈕居中
         inner_frame = ttk.Frame(preset_frame)
@@ -809,6 +877,9 @@ class TimeChangerApp:
             # 重新整理列表
             refresh_list()
             
+            # 重新整理主視窗的快速設定按鈕
+            self.create_preset_time_frame()
+            
         add_btn = ttk.Button(add_frame, text="添加", command=add_preset)
         add_btn.pack(pady=5)
         
@@ -833,6 +904,8 @@ class TimeChangerApp:
                         self.settings["preset_times"].pop(index)
                         save_settings(self.settings)
                         refresh_list()
+                        # 重新整理主視窗的快速設定按鈕
+                        self.create_preset_time_frame()
                 
                 delete_btn = ttk.Button(
                     item_frame,
@@ -867,6 +940,7 @@ class TimeChangerApp:
     def create_button_frame(self):
         button_frame = ttk.Frame(self.main_container)
         button_frame.pack(fill="x", pady=(0, 15))
+        self.button_frame = button_frame  # 保存框架引用
         
         # 創建內部框架以確保按鈕居中
         inner_frame = ttk.Frame(button_frame)
@@ -890,7 +964,7 @@ class TimeChangerApp:
 
     def create_version_frame(self):
         version_frame = ttk.Frame(self.main_container)
-        version_frame.pack(fill="x")
+        version_frame.pack(fill="x", pady=(10, 0))  # 增加上方間距
         
         # 左側版本資訊
         version_info_frame = ttk.Frame(version_frame)
@@ -901,14 +975,14 @@ class TimeChangerApp:
             text=f"版本：{VERSION}",
             font=("微軟正黑體", 9)
         )
-        version_label.pack(side="left", padx=(0, 10))
+        version_label.pack(side="left", padx=(0, 15))  # 增加間距
         
         author_label = ttk.Label(
             version_info_frame,
             text=f"作者：{AUTHOR}",
             font=("微軟正黑體", 9)
         )
-        author_label.pack(side="left", padx=(0, 10))
+        author_label.pack(side="left", padx=(0, 15))  # 增加間距
         
         # 建立可點擊的郵件連結
         email_label = ttk.Label(
@@ -932,7 +1006,7 @@ class TimeChangerApp:
             command=self.root.quit,
             width=10
         )
-        exit_button.pack(side="right", padx=(5, 0))
+        exit_button.pack(side="right", padx=(10, 0))  # 增加間距
         
         # 檢查更新按鈕
         update_button = ttk.Button(
@@ -941,7 +1015,7 @@ class TimeChangerApp:
             command=self.check_updates,
             width=10
         )
-        update_button.pack(side="right", padx=(5, 0))
+        update_button.pack(side="right", padx=(10, 0))  # 增加間距
         
         # 版本歷程按鈕
         history_button = ttk.Button(
@@ -950,8 +1024,8 @@ class TimeChangerApp:
             command=show_version_history,
             width=10
         )
-        history_button.pack(side="right", padx=(5, 0))
-
+        history_button.pack(side="right", padx=(10, 0))  # 增加間距
+        
         # 功能介紹按鈕
         help_button = ttk.Button(
             button_frame,
@@ -959,7 +1033,7 @@ class TimeChangerApp:
             command=self.show_features_info,
             width=10
         )
-        help_button.pack(side="right", padx=(5, 0))
+        help_button.pack(side="right", padx=(10, 0))  # 增加間距
 
     def center_window(self):
         self.root.update_idletasks()
@@ -1086,26 +1160,21 @@ class TimeChangerApp:
             return
             
         try:
-            ntp_servers = [
-                'pool.ntp.org',
-                'time.windows.com',
-                'time.nist.gov',
-                'time.google.com',
-                'time.apple.com',
-                'ntp.aliyun.com',
-                'ntp1.aliyun.com',
-                'ntp2.aliyun.com',
-                'ntp3.aliyun.com',
-                'ntp4.aliyun.com',
-                'ntp5.aliyun.com',
-                'ntp6.aliyun.com',
-                'ntp7.aliyun.com'
-            ]
+            # 獲取已啟用的 NTP 伺服器
+            enabled_servers = [server for server, enabled in self.settings["ntp_servers"].items() if enabled]
+            
+            if not enabled_servers:
+                messagebox.showwarning(
+                    "警告",
+                    "沒有啟用的 NTP 伺服器！\n"
+                    "請在 NTP 伺服器設定中至少啟用一個伺服器。"
+                )
+                return
             
             client = ntplib.NTPClient()
             last_error = None
             
-            for server in ntp_servers:
+            for server in enabled_servers:
                 try:
                     response = client.request(server, timeout=2)
                     net_time = datetime.fromtimestamp(response.tx_time)
@@ -1136,8 +1205,8 @@ class TimeChangerApp:
             error_msg += "可能的原因：\n"
             error_msg += "1. 網路連接不穩定\n"
             error_msg += "2. 防火牆阻止了 NTP 請求\n"
-            error_msg += "3. 所有 NTP 伺服器暫時無法訪問\n"
-            error_msg += "\n請檢查網路連接後重試"
+            error_msg += "3. 所有已啟用的 NTP 伺服器暫時無法訪問\n"
+            error_msg += "\n請檢查網路連接或嘗試啟用其他 NTP 伺服器"
             messagebox.showerror("錯誤", error_msg)
             return None
 
@@ -1312,6 +1381,8 @@ class TimeChangerApp:
         ntp_window.title("NTP 伺服器設定")
         ntp_window.geometry("400x500")
         ntp_window.resizable(True, True)
+        ntp_window.transient(self.root)  # 設置為主視窗的子視窗
+        ntp_window.grab_set()  # 模態視窗
         
         # 設置主題
         style = ttk.Style()
@@ -1334,26 +1405,6 @@ class TimeChangerApp:
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=350)
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        # NTP 伺服器列表
-        ntp_servers = {
-            'pool.ntp.org': True,
-            'time.windows.com': True,
-            'time.nist.gov': True,
-            'time.google.com': True,
-            'time.apple.com': True,
-            'ntp.aliyun.com': True,
-            'ntp1.aliyun.com': False,
-            'ntp2.aliyun.com': False,
-            'ntp3.aliyun.com': False,
-            'ntp4.aliyun.com': False,
-            'ntp5.aliyun.com': False,
-            'ntp6.aliyun.com': False,
-            'ntp7.aliyun.com': False,
-            'time.cloudflare.com': True,
-            'time.facebook.com': True,
-            'time.asia.apple.com': True
-        }
-        
         # 創建標題
         title_label = ttk.Label(
             scrollable_frame,
@@ -1362,10 +1413,15 @@ class TimeChangerApp:
         )
         title_label.pack(anchor="w", pady=(0, 10))
         
+        # 確保 ntp_servers 存在於設定中
+        if "ntp_servers" not in self.settings:
+            self.settings["ntp_servers"] = DEFAULT_SETTINGS["ntp_servers"].copy()
+        
         # 創建複選框
         var_dict = {}
-        for server, default_state in ntp_servers.items():
-            var = tk.BooleanVar(value=default_state)
+        for server in DEFAULT_SETTINGS["ntp_servers"].keys():
+            is_enabled = self.settings["ntp_servers"].get(server, DEFAULT_SETTINGS["ntp_servers"][server])
+            var = tk.BooleanVar(value=is_enabled)
             var_dict[server] = var
             cb = ttk.Checkbutton(
                 scrollable_frame,
@@ -1379,19 +1435,24 @@ class TimeChangerApp:
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill="x", pady=(10, 0))
         
-        def save_settings():
+        def save_ntp_settings():
             # 保存設置
-            selected_servers = [server for server, var in var_dict.items() if var.get()]
-            if not selected_servers:
+            selected_servers = {server: var.get() for server, var in var_dict.items()}
+            if not any(selected_servers.values()):
                 messagebox.showwarning("警告", "請至少選擇一個 NTP 伺服器！")
                 return
-            ntp_window.destroy()
+                
+            # 更新設定
+            self.settings["ntp_servers"] = selected_servers
+            if save_settings(self.settings):
+                messagebox.showinfo("成功", "NTP 伺服器設定已保存！")
+                ntp_window.destroy()
         
         # 添加保存按鈕
         save_button = ttk.Button(
             button_frame,
             text="保存設置",
-            command=save_settings,
+            command=save_ntp_settings,
             width=15
         )
         save_button.pack(side="right", padx=5)
