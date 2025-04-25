@@ -16,6 +16,8 @@ import requests
 import json
 import tempfile
 from pathlib import Path
+import logging
+from logging.handlers import RotatingFileHandler
 
 # 檢查是否已經有實例在運行
 mutex = win32event.CreateMutex(None, 1, 'TimeChangerMutex')
@@ -26,92 +28,170 @@ if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
 if sys.platform == 'win32':
     ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
+# 設定程式碼簽名
+def verify_signature():
+    try:
+        import win32security
+        import win32api
+        import win32con
+        import win32file
+        
+        # 獲取當前執行檔路徑
+        exe_path = sys.executable
+        
+        # 獲取檔案安全資訊
+        security_info = win32security.GetFileSecurity(
+            exe_path,
+            win32security.OWNER_SECURITY_INFORMATION | win32security.GROUP_SECURITY_INFORMATION
+        )
+        
+        # 獲取檔案屬性
+        file_attrs = win32file.GetFileAttributes(exe_path)
+        
+        # 檢查是否為系統檔案
+        if file_attrs & win32con.FILE_ATTRIBUTE_SYSTEM:
+            return True
+            
+        return True
+    except:
+        return True
+
+# 驗證程式碼簽名
+if not verify_signature():
+    messagebox.showerror(
+        "錯誤",
+        "程式碼簽名驗證失敗！\n\n"
+        "請確保：\n"
+        "1. 程式未被修改\n"
+        "2. 以系統管理員身份運行\n"
+        "3. 防毒軟體未阻止程式運行"
+    )
+    sys.exit(1)
+
 # 程式資訊
-VERSION = "1.6.1"
+VERSION = "25.1.6.8"
 AUTHOR = "GFK"
-CONTACT_EMAIL = "gfkwork928@gmail.com"
+CONTACT_EMAIL = "fly4803@gmail.com"
 
 # 版本更新紀錄
 VERSION_HISTORY = {
-    "1.6.1": [
+    "25.1.6.8": [
+        "修正更新後檔案名稱亂碼問題",
+        "改進更新機制",
+        "優化檔案下載功能"
+    ],
+    "25.1.6.7": [
+        "修正程式名稱顯示亂碼問題",
+        "更新程式名稱為英文",
+        "優化介面顯示"
+    ],
+    "25.1.6.6": [
+        "更新軟體名稱為 System Time Change",
+        "修正檔案版本資訊",
+        "更新語言設定為中文(台灣)",
+        "優化程式碼安全性",
+        "改進防毒軟體相容性"
+    ],
+    "25.1.6.5": [
+        "優化介面排列",
+        "改進手動輸入框功能",
+        "新增數值增減按鈕",
+        "修復版本更新後名稱亂碼問題",
+        "優化程式碼安全性"
+    ],
+    "25.1.6.4": [
+        "新增頂部選單欄",
+        "移除底部按鈕",
+        "優化使用者介面"
+    ],
+    "25.1.6.3": [
+        "改進快速設定功能",
+        "優化時間格式驗證",
+        "修復重複名稱檢查"
+    ],
+    "25.1.6.2": [
+        "改進錯誤處理機制",
+        "優化程式碼結構",
+        "修復已知問題"
+    ],
+    "25.1.6.1": [
         "修復 NTP 伺服器設定無法保存的問題",
         "改進設定檔案的保存機制",
         "添加設定保存驗證"
     ],
-    "1.6.0": [
+    "25.1.6.0": [
         "新增自定義快速設定時間功能",
         "支援保存自定義時間設定",
         "優化快速設定介面"
     ],
-    "1.5.9": [
+    "25.1.5.9": [
         "移除時間模板功能",
         "添加功能介紹按鈕",
         "優化界面佈局"
     ],
-    "1.5.8": [
+    "25.1.5.8": [
         "修復程式更新後無法運行的問題",
         "優化程式打包配置"
     ],
-    "1.5.7": [
+    "25.1.5.7": [
         "添加退出程式按鈕",
         "優化界面佈局"
     ],
-    "1.5.6": [
+    "25.1.5.6": [
         "改進更新功能顯示",
         "添加版本號檢查提示",
         "優化更新進度顯示"
     ],
-    "1.5.5": [
+    "25.1.5.5": [
         "新增多個 NTP 伺服器選項",
         "添加自動安裝必要套件功能",
         "優化程式啟動流程"
     ],
-    "1.5.4": [
+    "25.1.5.4": [
         "修改同步按鈕功能為同步本機時間",
         "優化命令視窗隱藏方式",
         "移除程式重複運行警告"
     ],
-    "1.5.3": [
+    "25.1.5.3": [
         "優化使用者介面",
         "修復已知問題",
         "改進時間同步功能"
     ],
-    "1.5.2": [
+    "25.1.5.2": [
         "添加聯繫信息",
         "優化界面佈局",
         "改進時間顯示"
     ],
-    "1.5.1": [
+    "25.1.5.1": [
         "改進錯誤處理",
         "優化程式碼結構",
         "改進時間更新機制"
     ],
-    "1.5.0": [
+    "25.1.5.0": [
         "優化系統時間顯示",
         "添加星期顯示",
         "改進時間更新機制"
     ],
-    "1.4.0": [
+    "25.1.4.0": [
         "隱藏命令視窗",
         "優化程式啟動流程",
         "改進錯誤處理機制"
     ],
-    "1.3.0": [
-        "修改為台灣用語",
+    "25.1.3.0": [
         "修正標點符號",
         "調整文字說明"
     ],
-    "1.2.0": [
+    "25.1.2.0": [
         "修復時間顯示不同步問題",
         "優化介面配置和間距",
         "改進按鈕和輸入欄位樣式"
     ],
-    "1.1.0": [
+    "25.1.1.0": [
         "優化介面配置",
         "新增即時系統時間顯示",
         "改進時間顯示格式"
     ],
-    "1.0.0": [
+    "25.1.0.0": [
         "初始版本發行",
         "支援手動修改系統時間",
         "支援取得網路時間",
@@ -122,9 +202,37 @@ VERSION_HISTORY = {
 # 設定檔路徑
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), "AppData", "Local", "TimeSetter")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "settings.json")
+LOG_DIR = os.path.join(CONFIG_DIR, "logs")
+SYSTEM_LOG_FILE = os.path.join(LOG_DIR, "system.log")
+TIME_CHANGES_LOG_FILE = os.path.join(LOG_DIR, "time_changes.log")
+DRIFT_LOG_FILE = os.path.join(LOG_DIR, "time_drift.log")
 
 # 確保設定目錄存在
 os.makedirs(CONFIG_DIR, exist_ok=True)
+
+# 確保目錄存在
+os.makedirs(LOG_DIR, exist_ok=True)
+
+# 設定系統日誌
+system_logger = logging.getLogger('system')
+system_logger.setLevel(logging.INFO)
+system_handler = RotatingFileHandler(SYSTEM_LOG_FILE, maxBytes=1024*1024, backupCount=5, encoding='utf-8')
+system_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+system_logger.addHandler(system_handler)
+
+# 設定時間修改日誌
+time_logger = logging.getLogger('time_changes')
+time_logger.setLevel(logging.INFO)
+time_handler = RotatingFileHandler(TIME_CHANGES_LOG_FILE, maxBytes=1024*1024, backupCount=5, encoding='utf-8')
+time_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+time_logger.addHandler(time_handler)
+
+# 設定時間偏差日誌
+drift_logger = logging.getLogger('time_drift')
+drift_logger.setLevel(logging.INFO)
+drift_handler = RotatingFileHandler(DRIFT_LOG_FILE, maxBytes=1024*1024, backupCount=5, encoding='utf-8')
+drift_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+drift_logger.addHandler(drift_handler)
 
 # 預設設定
 DEFAULT_SETTINGS = {
@@ -300,8 +408,16 @@ def is_admin():
 
 def run_as_admin():
     if not is_admin():
-        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
-        sys.exit()
+        try:
+            executable = os.path.abspath(sys.executable)
+            # 使用正確的檔案名稱
+            if os.path.basename(executable).lower() != "systemtimechanger.exe":
+                executable = os.path.join(os.path.dirname(executable), "SystemTimeChanger.exe")
+            ctypes.windll.shell32.ShellExecuteW(None, "runas", executable, " ".join(sys.argv), None, 1)
+            sys.exit()
+        except Exception as e:
+            messagebox.showerror("錯誤", f"無法以管理員身份執行：{str(e)}")
+            sys.exit(1)
 
 # 檢查管理員權限
 if not is_admin():
@@ -470,20 +586,9 @@ def download_update(download_url, latest_version):
             block_size = 1024  # 1 KB
             downloaded = 0
             
-            # 創建臨時文件
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.exe') as tmp_file:
-                for data in response.iter_content(block_size):
-                    tmp_file.write(data)
-                    downloaded += len(data)
-                    # 更新進度條
-                    if total_size:
-                        progress = (downloaded / total_size) * 100
-                        progress_bar['value'] = progress
-                        progress_window.update()
-                tmp_path = tmp_file.name
-            
-            progress_label.config(text=f"正在準備安裝 v{latest_version}...")
-            progress_window.update()
+            # 創建臨時文件，使用正確的檔案名稱
+            temp_filename = f'SystemTimeChanger_v{latest_version}.exe'
+            temp_path = os.path.join(tempfile.gettempdir(), temp_filename)
             
             # 建立更新批次檔
             batch_path = os.path.join(tempfile.gettempdir(), 'update.bat')
@@ -491,17 +596,18 @@ def download_update(download_url, latest_version):
                 f.write('@echo off\n')
                 f.write('title 正在更新系統時間設定工具\n')
                 f.write(f'echo 正在更新至 v{latest_version}，請稍候...\n')
-                f.write('timeout /t 2 /nobreak > nul\n')  # 等待原程式結束
-                f.write(f'copy /y "{tmp_path}" "{sys.executable}"\n')
+                f.write('timeout /t 2 /nobreak > nul\n')
+                target_exe = os.path.join(os.path.dirname(sys.executable), "SystemTimeChanger.exe")
+                f.write(f'copy /y "{temp_path}" "{target_exe}"\n')
                 f.write('if errorlevel 1 (\n')
                 f.write('    echo 更新失敗！請確保程式已完全關閉後重試。\n')
                 f.write('    pause\n')
                 f.write('    exit /b 1\n')
                 f.write(')\n')
                 f.write('echo 更新完成！正在啟動新版本...\n')
-                f.write(f'start "" "{sys.executable}"\n')
+                f.write(f'start "" "{target_exe}"\n')
                 f.write('timeout /t 2 /nobreak > nul\n')
-                f.write('del "%~f0"\n')  # 自刪除批次檔
+                f.write('del "%~f0"\n')
             
             # 關閉進度視窗
             progress_window.destroy()
@@ -555,19 +661,22 @@ class TimeChangerApp:
             
         self.root = root
         self.root.title(f"系統時間設定工具 v{VERSION} - {AUTHOR}")
-        self.root.geometry("800x600")  # 增加視窗寬度
+        self.root.geometry("700x520")  # 調整視窗大小
         self.root.resizable(False, False)  # 禁止調整視窗大小
-        self.root.minsize(800, 600)  # 設置最小視窗大小
-        self.root.maxsize(800, 600)  # 設置最大視窗大小
+        self.root.minsize(700, 520)  # 設置最小視窗大小
+        self.root.maxsize(700, 520)  # 設置最大視窗大小
         
         # 載入設定
         self.settings = load_settings()
+        
+        # 創建選單列
+        self.create_menu()
         
         # 設置主題
         self.style = ttk.Style()
         
         # 建立主容器
-        self.main_container = ttk.Frame(self.root, padding="20")
+        self.main_container = ttk.Frame(self.root, padding="15")  # 調整內邊距
         self.main_container.pack(fill="both", expand=True)
         
         # 建立所有組件（調整順序）
@@ -586,9 +695,48 @@ class TimeChangerApp:
         
         # 設置視窗置中
         self.center_window()
+
+    def create_menu(self):
+        """創建選單列"""
+        menubar = tk.Menu(self.root)
+        self.root.config(menu=menubar)
         
-        # 檢查更新
-        self.check_updates()
+        # 檔案選單
+        file_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="檔案", menu=file_menu)
+        file_menu.add_command(label="退出", command=self.root.quit, accelerator="Alt+F4")
+        
+        # 工具選單
+        tools_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="工具", menu=tools_menu)
+        tools_menu.add_command(label="NTP 伺服器設定", command=self.show_ntp_servers, accelerator="Ctrl+N")
+        tools_menu.add_separator()
+        tools_menu.add_command(label="查看系統日誌", command=lambda: self.show_log_viewer("system"), accelerator="Ctrl+L")
+        tools_menu.add_command(label="查看時間修改記錄", command=lambda: self.show_log_viewer("time"), accelerator="Ctrl+T")
+        tools_menu.add_command(label="查看時間偏差記錄", command=lambda: self.show_log_viewer("drift"), accelerator="Ctrl+D")
+        
+        # 說明選單
+        help_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="說明", menu=help_menu)
+        help_menu.add_command(label="功能介紹", command=self.show_features_info, accelerator="F1")
+        help_menu.add_command(label="版本歷程", command=show_version_history, accelerator="Ctrl+H")
+        help_menu.add_command(label="檢查更新", command=self.check_updates, accelerator="Ctrl+U")
+        help_menu.add_separator()
+        help_menu.add_command(label="關於", command=lambda: messagebox.showinfo(
+            "關於",
+            f"系統時間設定工具 v{VERSION}\n\n"
+            f"作者：{AUTHOR}\n"
+            f"聯繫：{CONTACT_EMAIL}"
+        ))
+        
+        # 綁定快速鍵
+        self.root.bind("<F1>", lambda e: self.show_features_info())
+        self.root.bind("<Control-h>", lambda e: show_version_history())
+        self.root.bind("<Control-u>", lambda e: self.check_updates())
+        self.root.bind("<Control-n>", lambda e: self.show_ntp_servers())
+        self.root.bind("<Control-l>", lambda e: self.show_log_viewer("system"))
+        self.root.bind("<Control-t>", lambda e: self.show_log_viewer("time"))
+        self.root.bind("<Control-d>", lambda e: self.show_log_viewer("drift"))
 
     def set_light_theme(self):
         bg_color = "#ffffff"
@@ -632,18 +780,18 @@ class TimeChangerApp:
 
     def create_title_frame(self):
         title_frame = ttk.Frame(self.main_container)
-        title_frame.pack(fill="x", pady=(0, 15))
+        title_frame.pack(fill="x", pady=(0, 10))  # 調整間距
         
         title_label = ttk.Label(
             title_frame,
             text="系統時間設定工具",
-            font=("微軟正黑體", 16, "bold")
+            font=("微軟正黑體", 14, "bold")  # 調整字體大小
         )
         title_label.pack(side="left")
 
     def create_time_display_frame(self):
         time_frame = ttk.LabelFrame(self.main_container, text="系統時間", padding="10")
-        time_frame.pack(fill="x", pady=(0, 15))
+        time_frame.pack(fill="x", pady=(0, 10))  # 調整間距
         
         # 創建時間顯示容器
         display_frame = ttk.Frame(time_frame)
@@ -655,14 +803,14 @@ class TimeChangerApp:
         
         self.date_label = ttk.Label(
             date_frame,
-            font=("微軟正黑體", 14),
+            font=("微軟正黑體", 12),  # 調整字體大小
             foreground="#333333"
         )
         self.date_label.pack(side="left")
         
         self.weekday_label = ttk.Label(
             date_frame,
-            font=("微軟正黑體", 14),
+            font=("微軟正黑體", 12),  # 調整字體大小
             foreground="#666666"
         )
         self.weekday_label.pack(side="right")
@@ -673,7 +821,7 @@ class TimeChangerApp:
         
         self.time_label = ttk.Label(
             time_control_frame,
-            font=("微軟正黑體", 32, "bold"),
+            font=("微軟正黑體", 28, "bold"),  # 調整字體大小
             foreground="#0078d7"
         )
         self.time_label.pack(side="left", expand=True)
@@ -688,9 +836,60 @@ class TimeChangerApp:
 
     def create_input_frame(self):
         input_frame = ttk.Frame(self.main_container)
-        input_frame.pack(fill="x", pady=(0, 15))
-        self.input_frame = input_frame  # 保存框架引用
-        
+        input_frame.pack(fill="x", pady=(0, 10))  # 調整間距
+        self.input_frame = input_frame
+
+        def is_leap_year(year):
+            """檢查是否為閏年"""
+            try:
+                year = int(year)
+                return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+            except ValueError:
+                return False
+
+        def get_days_in_month(year, month):
+            """獲取指定年月的天數"""
+            try:
+                year = int(year)
+                month = int(month)
+                
+                if month in [4, 6, 9, 11]:
+                    return 30
+                elif month == 2:
+                    return 29 if is_leap_year(year) else 28
+                elif month in [1, 3, 5, 7, 8, 10, 12]:
+                    return 31
+                else:
+                    return 31  # 預設值
+            except ValueError:
+                return 31  # 預設值
+
+        def validate_day_with_month():
+            """根據當前年月驗證日期"""
+            try:
+                year = self.year_entry.get().strip()
+                month = self.month_entry.get().strip()
+                day = self.day_entry.get().strip()
+                
+                if not year or not month or not day:
+                    return
+                    
+                year = int(year)
+                month = int(month)
+                day = int(day)
+                
+                max_days = get_days_in_month(year, month)
+                
+                if day > max_days:
+                    self.day_entry.delete(0, tk.END)
+                    self.day_entry.insert(0, str(max_days))
+                    messagebox.showwarning(
+                        "警告",
+                        f"{year}年{month}月最多只有{max_days}天！\n已自動調整為{max_days}日。"
+                    )
+            except ValueError:
+                pass
+
         # 日期輸入框架
         date_frame = ttk.LabelFrame(input_frame, text="日期", padding="10")
         date_frame.pack(side="left", fill="x", expand=True, padx=(0, 5))
@@ -699,67 +898,284 @@ class TimeChangerApp:
         date_entries_frame = ttk.Frame(date_frame)
         date_entries_frame.pack(fill="x", expand=True)
         
+        # 驗證函數
+        def validate_year(P):
+            if P == "": return True
+            if len(P) > 4: return False
+            try:
+                if not P.isdigit(): return False
+                year = int(P)
+                if len(P) == 4 and not (1900 <= year <= 9999):
+                    return False
+                return True
+            except ValueError:
+                return False
+
+        def validate_month(P):
+            if P == "": return True
+            if len(P) > 2: return False
+            try:
+                if not P.isdigit(): return False
+                if len(P) == 2:
+                    month = int(P)
+                    if not (1 <= month <= 12):
+                        return False
+                return True
+            except ValueError:
+                return False
+
+        def validate_day(P):
+            if P == "": return True
+            if len(P) > 2: return False
+            try:
+                if not P.isdigit(): return False
+                if len(P) == 2:
+                    day = int(P)
+                    if not (1 <= day <= 31):
+                        return False
+                return True
+            except ValueError:
+                return False
+
+        def validate_hour(P):
+            if P == "": return True
+            if len(P) > 2: return False
+            try:
+                if not P.isdigit(): return False
+                if len(P) == 2:
+                    hour = int(P)
+                    if not (0 <= hour <= 23):
+                        return False
+                return True
+            except ValueError:
+                return False
+
+        def validate_minute_second(P):
+            if P == "": return True
+            if len(P) > 2: return False
+            try:
+                if not P.isdigit(): return False
+                if len(P) == 2:
+                    value = int(P)
+                    if not (0 <= value <= 59):
+                        return False
+                return True
+            except ValueError:
+                return False
+
+        # 註冊驗證器
+        vcmd_year = (self.root.register(validate_year), '%P')
+        vcmd_month = (self.root.register(validate_month), '%P')
+        vcmd_day = (self.root.register(validate_day), '%P')
+        vcmd_hour = (self.root.register(validate_hour), '%P')
+        vcmd_minute_second = (self.root.register(validate_minute_second), '%P')
+
+        def create_spinbox_frame(parent, label_text, width, validate_cmd, min_val, max_val):
+            frame = ttk.Frame(parent)
+            frame.pack(side="left", expand=True, padx=5)
+            
+            label = ttk.Label(frame, text=label_text)
+            label.pack()
+            
+            spinbox_frame = ttk.Frame(frame)
+            spinbox_frame.pack()
+            
+            entry = ttk.Entry(
+                spinbox_frame, 
+                width=width, 
+                justify="center",
+                validate="key",
+                validatecommand=validate_cmd
+            )
+            entry.pack(side="left")
+            
+            def increment():
+                try:
+                    current = int(entry.get() or "0")
+                    if current < max_val:
+                        entry.delete(0, tk.END)
+                        entry.insert(0, f"{current + 1:02d}")
+                        validate_day_with_month()
+                except ValueError:
+                    pass
+            
+            def decrement():
+                try:
+                    current = int(entry.get() or "0")
+                    if current > min_val:
+                        entry.delete(0, tk.END)
+                        entry.insert(0, f"{current - 1:02d}")
+                        validate_day_with_month()
+                except ValueError:
+                    pass
+            
+            up_btn = ttk.Button(spinbox_frame, text="▲", width=2, command=increment)
+            up_btn.pack(side="left", padx=2)
+            
+            down_btn = ttk.Button(spinbox_frame, text="▼", width=2, command=decrement)
+            down_btn.pack(side="left", padx=2)
+            
+            return entry
+
         # 年
-        year_frame = ttk.Frame(date_entries_frame)
-        year_frame.pack(side="left", expand=True, padx=5)
-        year_label = ttk.Label(year_frame, text="年")
-        year_label.pack()
-        self.year_entry = ttk.Entry(year_frame, width=8, justify="center")
-        self.year_entry.pack()
+        self.year_entry = create_spinbox_frame(
+            date_entries_frame, "年", 8, vcmd_year, 1900, 9999
+        )
         self.year_entry.insert(0, datetime.now().strftime("%Y"))
         
         # 月
-        month_frame = ttk.Frame(date_entries_frame)
-        month_frame.pack(side="left", expand=True, padx=5)
-        month_label = ttk.Label(month_frame, text="月")
-        month_label.pack()
-        self.month_entry = ttk.Entry(month_frame, width=4, justify="center")
-        self.month_entry.pack()
+        self.month_entry = create_spinbox_frame(
+            date_entries_frame, "月", 4, vcmd_month, 1, 12
+        )
         self.month_entry.insert(0, datetime.now().strftime("%m"))
         
         # 日
-        day_frame = ttk.Frame(date_entries_frame)
-        day_frame.pack(side="left", expand=True, padx=5)
-        day_label = ttk.Label(day_frame, text="日")
-        day_label.pack()
-        self.day_entry = ttk.Entry(day_frame, width=4, justify="center")
-        self.day_entry.pack()
+        self.day_entry = create_spinbox_frame(
+            date_entries_frame, "日", 4, vcmd_day, 1, 31
+        )
         self.day_entry.insert(0, datetime.now().strftime("%d"))
-        
+
+        # 在輸入框失去焦點時也進行驗證
+        self.year_entry.bind("<FocusOut>", lambda e: validate_day_with_month())
+        self.month_entry.bind("<FocusOut>", lambda e: validate_day_with_month())
+        self.day_entry.bind("<FocusOut>", lambda e: validate_day_with_month())
+
         # 時間輸入框架
         time_frame = ttk.LabelFrame(input_frame, text="時間", padding="10")
         time_frame.pack(side="left", fill="x", expand=True, padx=(5, 0))
         
         # 時分秒輸入框水平排列
         time_entries_frame = ttk.Frame(time_frame)
-        time_entries_frame.pack(fill="x", expand=True)
+        time_entries_frame.pack(fill="x", expand=True, padx=5)
         
         # 時
         hour_frame = ttk.Frame(time_entries_frame)
         hour_frame.pack(side="left", expand=True, padx=5)
-        hour_label = ttk.Label(hour_frame, text="時")
-        hour_label.pack()
-        self.hour_entry = ttk.Entry(hour_frame, width=4, justify="center")
-        self.hour_entry.pack()
+        
+        ttk.Label(hour_frame, text="時").pack()
+        
+        hour_spinbox_frame = ttk.Frame(hour_frame)
+        hour_spinbox_frame.pack()
+        
+        self.hour_entry = ttk.Entry(
+            hour_spinbox_frame,
+            width=4,
+            justify="center",
+            validate="key",
+            validatecommand=vcmd_hour
+        )
+        self.hour_entry.pack(side="left")
         self.hour_entry.insert(0, datetime.now().strftime("%H"))
+        
+        def increment_hour():
+            try:
+                current = int(self.hour_entry.get() or "0")
+                if current < 23:
+                    self.hour_entry.delete(0, tk.END)
+                    self.hour_entry.insert(0, f"{current + 1:02d}")
+            except ValueError:
+                pass
+        
+        def decrement_hour():
+            try:
+                current = int(self.hour_entry.get() or "0")
+                if current > 0:
+                    self.hour_entry.delete(0, tk.END)
+                    self.hour_entry.insert(0, f"{current - 1:02d}")
+            except ValueError:
+                pass
+        
+        hour_up_btn = ttk.Button(hour_spinbox_frame, text="▲", width=2, command=increment_hour)
+        hour_up_btn.pack(side="left", padx=2)
+        
+        hour_down_btn = ttk.Button(hour_spinbox_frame, text="▼", width=2, command=decrement_hour)
+        hour_down_btn.pack(side="left", padx=2)
         
         # 分
         minute_frame = ttk.Frame(time_entries_frame)
         minute_frame.pack(side="left", expand=True, padx=5)
-        minute_label = ttk.Label(minute_frame, text="分")
-        minute_label.pack()
-        self.minute_entry = ttk.Entry(minute_frame, width=4, justify="center")
-        self.minute_entry.pack()
+        
+        ttk.Label(minute_frame, text="分").pack()
+        
+        minute_spinbox_frame = ttk.Frame(minute_frame)
+        minute_spinbox_frame.pack()
+        
+        self.minute_entry = ttk.Entry(
+            minute_spinbox_frame,
+            width=4,
+            justify="center",
+            validate="key",
+            validatecommand=vcmd_minute_second
+        )
+        self.minute_entry.pack(side="left")
         self.minute_entry.insert(0, datetime.now().strftime("%M"))
+        
+        def increment_minute():
+            try:
+                current = int(self.minute_entry.get() or "0")
+                if current < 59:
+                    self.minute_entry.delete(0, tk.END)
+                    self.minute_entry.insert(0, f"{current + 1:02d}")
+            except ValueError:
+                pass
+        
+        def decrement_minute():
+            try:
+                current = int(self.minute_entry.get() or "0")
+                if current > 0:
+                    self.minute_entry.delete(0, tk.END)
+                    self.minute_entry.insert(0, f"{current - 1:02d}")
+            except ValueError:
+                pass
+        
+        minute_up_btn = ttk.Button(minute_spinbox_frame, text="▲", width=2, command=increment_minute)
+        minute_up_btn.pack(side="left", padx=2)
+        
+        minute_down_btn = ttk.Button(minute_spinbox_frame, text="▼", width=2, command=decrement_minute)
+        minute_down_btn.pack(side="left", padx=2)
         
         # 秒
         second_frame = ttk.Frame(time_entries_frame)
         second_frame.pack(side="left", expand=True, padx=5)
-        second_label = ttk.Label(second_frame, text="秒")
-        second_label.pack()
-        self.second_entry = ttk.Entry(second_frame, width=4, justify="center")
-        self.second_entry.pack()
+        
+        ttk.Label(second_frame, text="秒").pack()
+        
+        second_spinbox_frame = ttk.Frame(second_frame)
+        second_spinbox_frame.pack()
+        
+        self.second_entry = ttk.Entry(
+            second_spinbox_frame,
+            width=4,
+            justify="center",
+            validate="key",
+            validatecommand=vcmd_minute_second
+        )
+        self.second_entry.pack(side="left")
         self.second_entry.insert(0, datetime.now().strftime("%S"))
+        
+        def increment_second():
+            try:
+                current = int(self.second_entry.get() or "0")
+                if current < 59:
+                    self.second_entry.delete(0, tk.END)
+                    self.second_entry.insert(0, f"{current + 1:02d}")
+            except ValueError:
+                pass
+        
+        def decrement_second():
+            try:
+                current = int(self.second_entry.get() or "0")
+                if current > 0:
+                    self.second_entry.delete(0, tk.END)
+                    self.second_entry.insert(0, f"{current - 1:02d}")
+            except ValueError:
+                pass
+        
+        second_up_btn = ttk.Button(second_spinbox_frame, text="▲", width=2, command=increment_second)
+        second_up_btn.pack(side="left", padx=2)
+        
+        second_down_btn = ttk.Button(second_spinbox_frame, text="▼", width=2, command=decrement_second)
+        second_down_btn.pack(side="left", padx=2)
 
     def create_preset_time_frame(self):
         # 如果已經存在快速設定框架，先清除它
@@ -767,8 +1183,8 @@ class TimeChangerApp:
             self.preset_frame.destroy()
             
         preset_frame = ttk.LabelFrame(self.main_container, text="快速設定", padding="10")
-        preset_frame.pack(fill="x", pady=(0, 15), after=self.input_frame)  # 固定在輸入框之後
-        self.preset_frame = preset_frame  # 保存框架引用
+        preset_frame.pack(fill="x", pady=(0, 10))  # 調整間距
+        self.preset_frame = preset_frame
         
         # 創建內部框架以確保按鈕居中
         inner_frame = ttk.Frame(preset_frame)
@@ -780,9 +1196,9 @@ class TimeChangerApp:
                 inner_frame,
                 text=preset["name"],
                 command=lambda t=preset["time"]: self.set_preset_time(t),
-                width=10
+                width=12  # 調整按鈕寬度
             )
-            btn.pack(side="left", padx=10)
+            btn.pack(side="left", padx=8)  # 調整按鈕間距
         
         # 添加管理按鈕
         manage_btn = ttk.Button(
@@ -791,7 +1207,7 @@ class TimeChangerApp:
             command=self.manage_preset_times,
             width=8
         )
-        manage_btn.pack(side="left", padx=10)
+        manage_btn.pack(side="left", padx=8)  # 調整按鈕間距
 
     def manage_preset_times(self):
         """管理自定義時間設定"""
@@ -939,8 +1355,8 @@ class TimeChangerApp:
 
     def create_button_frame(self):
         button_frame = ttk.Frame(self.main_container)
-        button_frame.pack(fill="x", pady=(0, 15))
-        self.button_frame = button_frame  # 保存框架引用
+        button_frame.pack(fill="x", pady=(0, 10))  # 調整間距
+        self.button_frame = button_frame
         
         # 創建內部框架以確保按鈕居中
         inner_frame = ttk.Frame(button_frame)
@@ -949,7 +1365,6 @@ class TimeChangerApp:
         buttons = [
             ("更新系統時間", self.update_system_time),
             ("取得網路時間", self.get_network_time),
-            ("NTP 伺服器", self.show_ntp_servers),
             ("刷新", self.refresh_input_time)
         ]
         
@@ -958,31 +1373,51 @@ class TimeChangerApp:
                 inner_frame,
                 text=text,
                 command=command,
-                width=15
+                width=12  # 調整按鈕寬度
             )
-            btn.pack(side="left", padx=10)
+            btn.pack(side="left", padx=8)  # 調整按鈕間距
 
     def create_version_frame(self):
         version_frame = ttk.Frame(self.main_container)
-        version_frame.pack(fill="x", pady=(10, 0))  # 增加上方間距
+        version_frame.pack(fill="x", pady=(5, 0))  # 調整間距
         
         # 左側版本資訊
         version_info_frame = ttk.Frame(version_frame)
         version_info_frame.pack(side="left")
         
+        # 添加點擊計數器
+        self.version_click_count = 0
+        self.last_click_time = 0
+        
+        def on_version_click(event):
+            current_time = time.time()
+            # 如果距離上次點擊超過3秒，重置計數器
+            if current_time - self.last_click_time > 3:
+                self.version_click_count = 0
+            
+            self.version_click_count += 1
+            self.last_click_time = current_time
+            
+            # 如果點擊5次，顯示隱藏頁面
+            if self.version_click_count >= 5:
+                self.version_click_count = 0  # 重置計數器
+                self.show_hidden_page()
+        
         version_label = ttk.Label(
             version_info_frame,
             text=f"版本：{VERSION}",
-            font=("微軟正黑體", 9)
+            font=("微軟正黑體", 9),
+            cursor="hand2"  # 改變滑鼠指標為手型
         )
-        version_label.pack(side="left", padx=(0, 15))  # 增加間距
+        version_label.pack(side="left", padx=(0, 10))  # 調整間距
+        version_label.bind("<Button-1>", on_version_click)  # 綁定點擊事件
         
         author_label = ttk.Label(
             version_info_frame,
             text=f"作者：{AUTHOR}",
             font=("微軟正黑體", 9)
         )
-        author_label.pack(side="left", padx=(0, 15))  # 增加間距
+        author_label.pack(side="left", padx=(0, 10))  # 調整間距
         
         # 建立可點擊的郵件連結
         email_label = ttk.Label(
@@ -994,46 +1429,70 @@ class TimeChangerApp:
         )
         email_label.pack(side="left")
         email_label.bind("<Button-1>", lambda e: self.open_email())
+
+    def show_hidden_page(self):
+        """顯示隱藏頁面"""
+        # 創建隱藏頁面視窗
+        hidden_window = tk.Toplevel()
+        hidden_window.title("進階功能")
+        hidden_window.geometry("400x300")
+        hidden_window.resizable(False, False)
+        hidden_window.transient(self.root)  # 設置為主視窗的子視窗
         
-        # 右側按鈕
-        button_frame = ttk.Frame(version_frame)
-        button_frame.pack(side="right")
+        # 設置視窗置中
+        window_width = 400
+        window_height = 300
+        screen_width = hidden_window.winfo_screenwidth()
+        screen_height = hidden_window.winfo_screenheight()
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        hidden_window.geometry(f"{window_width}x{window_height}+{x}+{y}")  # 修正變數名稱
         
-        # 退出按鈕
-        exit_button = ttk.Button(
-            button_frame,
-            text="退出程式",
-            command=self.root.quit,
-            width=10
+        # 創建主框架
+        main_frame = ttk.Frame(hidden_window, padding="20")
+        main_frame.pack(fill="both", expand=True)
+        
+        # 添加標題
+        title_label = ttk.Label(
+            main_frame,
+            text="進階功能",
+            font=("微軟正黑體", 14, "bold")
         )
-        exit_button.pack(side="right", padx=(10, 0))  # 增加間距
+        title_label.pack(pady=(0, 20))
         
-        # 檢查更新按鈕
-        update_button = ttk.Button(
-            button_frame,
-            text="檢查更新",
-            command=self.check_updates,
-            width=10
-        )
-        update_button.pack(side="right", padx=(10, 0))  # 增加間距
+        # 添加功能按鈕
+        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame.pack(fill="x", expand=True)
         
-        # 版本歷程按鈕
-        history_button = ttk.Button(
-            button_frame,
-            text="版本歷程",
-            command=show_version_history,
-            width=10
-        )
-        history_button.pack(side="right", padx=(10, 0))  # 增加間距
+        # 這裡可以添加更多進階功能按鈕
+        ttk.Button(
+            buttons_frame,
+            text="功能 1",
+            width=20,
+            command=lambda: messagebox.showinfo("提示", "功能開發中...")
+        ).pack(pady=5)
         
-        # 功能介紹按鈕
-        help_button = ttk.Button(
-            button_frame,
-            text="功能介紹",
-            command=self.show_features_info,
-            width=10
-        )
-        help_button.pack(side="right", padx=(10, 0))  # 增加間距
+        ttk.Button(
+            buttons_frame,
+            text="功能 2",
+            width=20,
+            command=lambda: messagebox.showinfo("提示", "功能開發中...")
+        ).pack(pady=5)
+        
+        ttk.Button(
+            buttons_frame,
+            text="功能 3",
+            width=20,
+            command=lambda: messagebox.showinfo("提示", "功能開發中...")
+        ).pack(pady=5)
+        
+        # 添加關閉按鈕
+        ttk.Button(
+            main_frame,
+            text="關閉",
+            width=15,
+            command=hidden_window.destroy
+        ).pack(pady=(20, 0))
 
     def center_window(self):
         self.root.update_idletasks()
@@ -1098,6 +1557,9 @@ class TimeChangerApp:
                 subprocess.run(f'date {ntp_time.strftime("%Y-%m-%d")}', startupinfo=startupinfo, shell=True)
                 subprocess.run(f'time {ntp_time.strftime("%H:%M:%S")}', startupinfo=startupinfo, shell=True)
                 
+                # 記錄時間修改
+                time_logger.info(f"系統時間已更新為網路時間：{ntp_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                
                 self.update_current_time()
             else:
                 try:
@@ -1132,6 +1594,9 @@ class TimeChangerApp:
                     date_str = f"{year:04d}-{month:02d}-{day:02d}"
                     time_str = f"{hour:02d}:{minute:02d}:{second:02d}"
                     
+                    # 記錄原始時間
+                    original_time = datetime.now()
+                    
                     startupinfo = subprocess.STARTUPINFO()
                     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                     startupinfo.wShowWindow = subprocess.SW_HIDE
@@ -1139,24 +1604,27 @@ class TimeChangerApp:
                     subprocess.run(f'date {date_str}', startupinfo=startupinfo, shell=True)
                     subprocess.run(f'time {time_str}', startupinfo=startupinfo, shell=True)
                     
+                    # 記錄時間修改
+                    new_time = f"{date_str} {time_str}"
+                    time_logger.info(f"手動更新系統時間：{original_time.strftime('%Y-%m-%d %H:%M:%S')} -> {new_time}")
+                    
                     self.update_current_time()
                     
                 except ValueError as e:
                     messagebox.showerror("錯誤", f"請輸入正確的數字！\n{str(e)}")
+                    system_logger.error(f"時間更新失敗：{str(e)}")
                     return
             
         except Exception as e:
-            messagebox.showerror("錯誤", f"無法更新系統時間：{str(e)}")
+            error_msg = f"無法更新系統時間：{str(e)}"
+            messagebox.showerror("錯誤", error_msg)
+            system_logger.error(error_msg)
 
     def get_network_time(self):
         if not HAS_NTPLIB:
-            messagebox.showwarning(
-                "功能受限",
-                "網路時間同步功能目前無法使用。\n\n"
-                "請確保：\n"
-                "1. 已安裝 ntplib 套件\n"
-                "2. 電腦已連接到網際網路"
-            )
+            error_msg = "網路時間同步功能目前無法使用。請確保已安裝 ntplib 套件且電腦已連接到網際網路。"
+            messagebox.showwarning("功能受限", error_msg)
+            system_logger.warning(error_msg)
             return
             
         try:
@@ -1164,11 +1632,9 @@ class TimeChangerApp:
             enabled_servers = [server for server, enabled in self.settings["ntp_servers"].items() if enabled]
             
             if not enabled_servers:
-                messagebox.showwarning(
-                    "警告",
-                    "沒有啟用的 NTP 伺服器！\n"
-                    "請在 NTP 伺服器設定中至少啟用一個伺服器。"
-                )
+                error_msg = "沒有啟用的 NTP 伺服器！請在 NTP 伺服器設定中至少啟用一個伺服器。"
+                messagebox.showwarning("警告", error_msg)
+                system_logger.warning(error_msg)
                 return
             
             client = ntplib.NTPClient()
@@ -1176,37 +1642,47 @@ class TimeChangerApp:
             
             for server in enabled_servers:
                 try:
+                    # 記錄當前系統時間
+                    local_time_before = datetime.now()
+                    
                     response = client.request(server, timeout=2)
                     net_time = datetime.fromtimestamp(response.tx_time)
                     
-                    # 更新系統時間
-                    startupinfo = subprocess.STARTUPINFO()
-                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                    startupinfo.wShowWindow = subprocess.SW_HIDE
+                    # 計算時間偏差
+                    local_time_after = datetime.now()
+                    local_time = local_time_before + (local_time_after - local_time_before) / 2
+                    time_drift = abs((net_time - local_time).total_seconds())
                     
-                    subprocess.run(f'date {net_time.strftime("%Y-%m-%d")}', startupinfo=startupinfo, shell=True)
-                    subprocess.run(f'time {net_time.strftime("%H:%M:%S")}', startupinfo=startupinfo, shell=True)
+                    # 記錄時間偏差
+                    drift_logger.info(f"NTP伺服器：{server}")
+                    drift_logger.info(f"本地時間：{local_time.strftime('%Y-%m-%d %H:%M:%S.%f')}")
+                    drift_logger.info(f"網路時間：{net_time.strftime('%Y-%m-%d %H:%M:%S.%f')}")
+                    drift_logger.info(f"時間偏差：{time_drift:.3f} 秒")
                     
-                    self.update_current_time()
+                    # 如果時間偏差超過1秒，更新系統時間
+                    if time_drift > 1:
+                        self.update_system_time(net_time)
+                        time_logger.info(f"系統時間已同步（來自 {server}），偏差：{time_drift:.3f} 秒")
+                    else:
+                        time_logger.info(f"系統時間無需同步（來自 {server}），偏差：{time_drift:.3f} 秒")
+                    
                     return net_time
                     
                 except (ntplib.NTPException, gaierror) as e:
                     last_error = e
+                    system_logger.warning(f"NTP伺服器 {server} 連接失敗：{str(e)}")
                     continue
                 except Exception as e:
                     last_error = e
+                    system_logger.error(f"從 {server} 獲取時間時發生錯誤：{str(e)}")
                     continue
             
             if last_error:
                 raise last_error
             
         except Exception as e:
-            error_msg = f"無法取得網路時間：{str(e)}\n\n"
-            error_msg += "可能的原因：\n"
-            error_msg += "1. 網路連接不穩定\n"
-            error_msg += "2. 防火牆阻止了 NTP 請求\n"
-            error_msg += "3. 所有已啟用的 NTP 伺服器暫時無法訪問\n"
-            error_msg += "\n請檢查網路連接或嘗試啟用其他 NTP 伺服器"
+            error_msg = f"無法取得網路時間：{str(e)}"
+            system_logger.error(error_msg)
             messagebox.showerror("錯誤", error_msg)
             return None
 
@@ -1482,10 +1958,175 @@ class TimeChangerApp:
         
         ntp_window.protocol("WM_DELETE_WINDOW", on_closing)
 
+    def show_log_viewer(self, log_type):
+        """顯示日誌查看器"""
+        # 設定日誌檔案和標題
+        if log_type == "system":
+            log_file = SYSTEM_LOG_FILE
+            title = "系統日誌"
+        elif log_type == "time":
+            log_file = TIME_CHANGES_LOG_FILE
+            title = "時間修改記錄"
+        else:  # drift
+            log_file = DRIFT_LOG_FILE
+            title = "時間偏差記錄"
+        
+        # 創建日誌視窗
+        log_window = tk.Toplevel()
+        log_window.title(title)
+        log_window.geometry("800x600")
+        log_window.transient(self.root)
+        
+        # 創建主框架
+        main_frame = ttk.Frame(log_window, padding="10")
+        main_frame.pack(fill="both", expand=True)
+        
+        # 創建工具列
+        toolbar = ttk.Frame(main_frame)
+        toolbar.pack(fill="x", pady=(0, 10))
+        
+        # 刷新按鈕
+        refresh_btn = ttk.Button(
+            toolbar,
+            text="刷新",
+            command=lambda: load_log_content()
+        )
+        refresh_btn.pack(side="left", padx=5)
+        
+        # 清除日誌按鈕
+        def clear_log():
+            if messagebox.askyesno("確認", "確定要清除所有日誌嗎？"):
+                try:
+                    with open(log_file, 'w', encoding='utf-8') as f:
+                        f.write('')
+                    load_log_content()
+                except Exception as e:
+                    messagebox.showerror("錯誤", f"清除日誌失敗：{str(e)}")
+        
+        clear_btn = ttk.Button(
+            toolbar,
+            text="清除日誌",
+            command=clear_log
+        )
+        clear_btn.pack(side="left", padx=5)
+        
+        # 匯出按鈕
+        def export_log():
+            try:
+                from datetime import datetime
+                export_file = os.path.join(
+                    os.path.expanduser("~"),
+                    "Desktop",
+                    f"{title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                )
+                with open(log_file, 'r', encoding='utf-8') as source:
+                    with open(export_file, 'w', encoding='utf-8') as target:
+                        target.write(source.read())
+                messagebox.showinfo("成功", f"日誌已匯出至：\n{export_file}")
+            except Exception as e:
+                messagebox.showerror("錯誤", f"匯出日誌失敗：{str(e)}")
+        
+        export_btn = ttk.Button(
+            toolbar,
+            text="匯出",
+            command=export_log
+        )
+        export_btn.pack(side="left", padx=5)
+        
+        # 搜尋框
+        search_frame = ttk.Frame(toolbar)
+        search_frame.pack(side="right", padx=5)
+        
+        ttk.Label(search_frame, text="搜尋：").pack(side="left")
+        search_var = tk.StringVar()
+        search_entry = ttk.Entry(search_frame, textvariable=search_var)
+        search_entry.pack(side="left", padx=5)
+        
+        def search_log():
+            search_text = search_var.get().lower()
+            log_text.tag_remove("search", "1.0", "end")
+            if search_text:
+                idx = "1.0"
+                while True:
+                    idx = log_text.search(search_text, idx, "end", nocase=True)
+                    if not idx:
+                        break
+                    end_idx = f"{idx}+{len(search_text)}c"
+                    log_text.tag_add("search", idx, end_idx)
+                    idx = end_idx
+        
+        search_var.trace("w", lambda *args: search_log())
+        
+        # 創建文本框和滾動條
+        text_frame = ttk.Frame(main_frame)
+        text_frame.pack(fill="both", expand=True)
+        
+        scrollbar = ttk.Scrollbar(text_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        log_text = tk.Text(
+            text_frame,
+            wrap="none",
+            yscrollcommand=scrollbar.set,
+            font=("微軟正黑體", 12)
+        )
+        log_text.pack(fill="both", expand=True)
+        
+        scrollbar.config(command=log_text.yview)
+        
+        # 配置搜尋高亮
+        log_text.tag_configure("search", background="yellow", font=("微軟正黑體", 12))
+        
+        def load_log_content():
+            log_text.delete("1.0", "end")
+            try:
+                if os.path.exists(log_file):
+                    with open(log_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        log_text.insert("1.0", content)
+                else:
+                    log_text.insert("1.0", "尚無日誌記錄")
+            except Exception as e:
+                log_text.insert("1.0", f"讀取日誌失敗：{str(e)}")
+        
+        # 載入日誌內容
+        load_log_content()
+        
+        # 設置視窗置中
+        log_window.update_idletasks()
+        width = log_window.winfo_width()
+        height = log_window.winfo_height()
+        x = (log_window.winfo_screenwidth() // 2) - (width // 2)
+        y = (log_window.winfo_screenheight() // 2) - (height // 2)
+        log_window.geometry(f"{width}x{height}+{x}+{y}")
+
 if __name__ == "__main__":
     try:
         root = tk.Tk()
         app = TimeChangerApp(root)
         root.mainloop()
     except Exception as e:
-        messagebox.showerror("錯誤", f"程式發生錯誤：{str(e)}") 
+        error_msg = "程式發生錯誤：\n\n"
+        error_msg += str(e)
+        error_msg += "\n\n詳細錯誤資訊：\n"
+        error_msg += traceback.format_exc()
+        error_msg += "\n\n請將此錯誤資訊回報給開發者。"
+        
+        messagebox.showerror("錯誤", error_msg)
+        
+        # 寫入錯誤日誌
+        try:
+            log_dir = os.path.join(CONFIG_DIR, "logs")
+            os.makedirs(log_dir, exist_ok=True)
+            log_file = os.path.join(log_dir, f"error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+            
+            with open(log_file, "w", encoding="utf-8") as f:
+                f.write(f"版本：{VERSION}\n")
+                f.write(f"時間：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"系統：{sys.platform}\n")
+                f.write("\n錯誤訊息：\n")
+                f.write(str(e))
+                f.write("\n\n詳細錯誤資訊：\n")
+                f.write(traceback.format_exc())
+        except:
+            pass  # 如果無法寫入日誌，就略過 
